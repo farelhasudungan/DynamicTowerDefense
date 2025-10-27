@@ -38,6 +38,9 @@ LIGHT_GRAY = (200, 200, 200)
 DARK_GREEN = (0, 100, 0)
 PURPLE = (147, 112, 219)
 UI_BACKGROUND = (240, 240, 240)
+LIGHT_BLUE = (100, 200, 255)  # Brighter blue for visibility
+LIGHT_GREEN = (100, 255, 150)  # Brighter green for visibility
+ORANGE = (255, 140, 0)
 
 
 # Game States
@@ -70,6 +73,167 @@ class Node:
         return hash((self.x, self.y))
 
 
+class PathfindingVisualizer:
+    """Visualizes pathfinding algorithm exploration on the grid"""
+    
+    def __init__(self, grid_width, grid_height, grid_size, y_offset):
+        self.grid_width = grid_width
+        self.grid_height = grid_height
+        self.grid_size = grid_size
+        self.y_offset = y_offset
+        self.exploration_history = []
+        self.current_step = 0
+        self.max_step = 0
+        self.show_visualization = False
+        self.playback_speed = 1
+        self.auto_play = False
+        self.play_timer = 0
+        
+    def clear(self):
+        """Clear all exploration history"""
+        self.exploration_history = []
+        self.current_step = 0
+        self.max_step = 0
+        print("🧹 Visualization cleared")
+        
+    def record_exploration_step(self, current_node, open_set, closed_set, algorithm_name=""):
+        """Record each exploration step during pathfinding"""
+        self.exploration_history.append({
+            'current': current_node,
+            'open_set': set(open_set),
+            'closed_set': closed_set.copy(),
+            'algorithm': algorithm_name
+        })
+        self.max_step = len(self.exploration_history) - 1
+    
+    def draw_exploration(self, screen, step_index=None):
+        """Draw the exploration state at a specific step"""
+        if not self.exploration_history or not self.show_visualization:
+            return
+        
+        if step_index is None:
+            step_index = min(self.current_step, len(self.exploration_history) - 1)
+        
+        if step_index < 0 or step_index >= len(self.exploration_history):
+            return
+            
+        step = self.exploration_history[step_index]
+        
+        # Draw closed set (explored nodes) in bright blue
+        for node in step['closed_set']:
+            x, y = node
+            rect = pygame.Rect(x * self.grid_size, 
+                             y * self.grid_size + self.y_offset,
+                             self.grid_size, self.grid_size)
+            # Draw with semi-transparent surface
+            s = pygame.Surface((self.grid_size, self.grid_size))
+            s.set_alpha(180)  # More opaque
+            s.fill(LIGHT_BLUE)
+            screen.blit(s, rect)
+            pygame.draw.rect(screen, (50, 150, 200), rect, 2)  # Border
+        
+        # Draw open set (frontier) in bright green
+        for node in step['open_set']:
+            x, y = node
+            rect = pygame.Rect(x * self.grid_size, 
+                             y * self.grid_size + self.y_offset,
+                             self.grid_size, self.grid_size)
+            s = pygame.Surface((self.grid_size, self.grid_size))
+            s.set_alpha(180)  # More opaque
+            s.fill(LIGHT_GREEN)
+            screen.blit(s, rect)
+            pygame.draw.rect(screen, (50, 200, 100), rect, 2)  # Border
+        
+        # Draw current node in bright orange
+        if step['current']:
+            x, y = step['current']
+            rect = pygame.Rect(x * self.grid_size, 
+                             y * self.grid_size + self.y_offset,
+                             self.grid_size, self.grid_size)
+            s = pygame.Surface((self.grid_size, self.grid_size))
+            s.set_alpha(220)  # Almost opaque
+            s.fill(ORANGE)
+            screen.blit(s, rect)
+            pygame.draw.rect(screen, (255, 100, 0), rect, 3)  # Thick border
+    
+    def draw_controls(self, screen, font):
+        """Draw visualization controls"""
+        if not self.exploration_history:
+            return
+            
+        control_y = WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT + 50
+        
+        # Draw visualization status indicator
+        if self.show_visualization:
+            status_text = font.render("VIZ: ON", True, GREEN)
+        else:
+            status_text = font.render("VIZ: OFF", True, RED)
+        screen.blit(status_text, (50, control_y))
+        
+        if not self.show_visualization:
+            return
+        
+        # Draw step counter
+        step_text = font.render(f"Step: {self.current_step + 1}/{self.max_step + 1}", True, WHITE)
+        screen.blit(step_text, (250, control_y))
+        
+        # Draw legend
+        legend_x = 450
+        legend_y = control_y + 3
+        
+        # Closed (explored)
+        pygame.draw.rect(screen, LIGHT_BLUE, (legend_x, legend_y, 15, 15))
+        legend_text = font.render("Explored", True, WHITE)
+        screen.blit(legend_text, (legend_x + 20, legend_y - 5))
+        
+        # Open (frontier)
+        legend_x += 115
+        pygame.draw.rect(screen, LIGHT_GREEN, (legend_x, legend_y, 15, 15))
+        legend_text = font.render("Frontier", True, WHITE)
+        screen.blit(legend_text, (legend_x + 20, legend_y - 5))
+        
+        # Current
+        legend_x += 110
+        pygame.draw.rect(screen, ORANGE, (legend_x, legend_y, 15, 15))
+        legend_text = font.render("Current", True, WHITE)
+        screen.blit(legend_text, (legend_x + 20, legend_y - 5))
+        
+        # Controls hint
+        legend_x += 110
+        controls_text = font.render("[←/→: Step] [Space: Auto] [R: Reset]", True, YELLOW)
+        screen.blit(controls_text, (legend_x + 20, legend_y - 5))
+    
+    def update(self):
+        """Update visualization for auto-play"""
+        if self.auto_play and self.exploration_history:
+            self.play_timer += 1
+            if self.play_timer >= max(1, 5 // self.playback_speed):  # Faster playback
+                self.play_timer = 0
+                self.current_step = (self.current_step + 1) % (self.max_step + 1)
+    
+    def next_step(self):
+        """Move to next step"""
+        if self.current_step < self.max_step:
+            self.current_step += 1
+            print(f"➡️  Step {self.current_step + 1}/{self.max_step + 1}")
+    
+    def prev_step(self):
+        """Move to previous step"""
+        if self.current_step > 0:
+            self.current_step -= 1
+            print(f"⬅️  Step {self.current_step + 1}/{self.max_step + 1}")
+    
+    def reset_step(self):
+        """Reset to first step"""
+        self.current_step = 0
+        print(f"🔄 Reset to step 1/{self.max_step + 1}")
+    
+    def toggle_auto_play(self):
+        """Toggle auto-play mode"""
+        self.auto_play = not self.auto_play
+        print(f"⏯️  Auto-play: {'ON' if self.auto_play else 'OFF'}")
+
+
 class Button:
     """Image-based button for menu and options"""
     def __init__(self, x: int, y: int, normal_image_path: str, hover_image_path: str, action):
@@ -80,7 +244,7 @@ class Button:
         try:
             self.normal_image = pygame.image.load(normal_image_path)
             self.hover_image = pygame.image.load(hover_image_path)
-        except: # fallback to colored rectangles if images not found
+        except:
             self.normal_image = pygame.Surface((300, 80))
             self.normal_image.fill(BLUE)
             self.hover_image = pygame.Surface((300, 80))
@@ -135,7 +299,7 @@ class UIButton:
 
 
 class PathfindingAlgorithms:
-    """Collection of pathfinding algorithms with debug output"""
+    """Collection of pathfinding algorithms with visualization support"""
     
     @staticmethod
     def heuristic(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> float:
@@ -157,8 +321,9 @@ class PathfindingAlgorithms:
     
     @staticmethod
     def astar(start: Tuple[int, int], goal: Tuple[int, int], 
-              obstacles: set, grid_width: int, grid_height: int, debug: bool = True) -> Optional[List[Tuple[int, int]]]:
-        """A* Algorithm: Uses both g(n) and h(n) -> f(n) = g(n) + h(n)"""
+              obstacles: set, grid_width: int, grid_height: int, 
+              debug: bool = True, visualizer=None) -> Optional[List[Tuple[int, int]]]:
+        """A* Algorithm with visualization support"""
         if debug:
             print("\n" + "="*60)
             print("🔍 A* PATHFINDING DEBUG")
@@ -181,6 +346,16 @@ class PathfindingAlgorithms:
             current = heapq.heappop(open_set)
             nodes_explored += 1
             
+            # Record visualization step
+            if visualizer:
+                open_positions = [(n.x, n.y) for n in open_set]
+                visualizer.record_exploration_step(
+                    (current.x, current.y), 
+                    open_positions, 
+                    closed_set,
+                    "A*"
+                )
+            
             if debug and nodes_explored % 50 == 0:
                 print(f"Nodes explored: {nodes_explored} | Open set: {len(open_set)} | Closed set: {len(closed_set)}")
             
@@ -196,7 +371,8 @@ class PathfindingAlgorithms:
                     print(f"Total nodes explored: {nodes_explored}")
                     print(f"Path length: {len(path)} steps")
                     print(f"Path cost (g): {len(path) - 1}")
-                    print(f"First 10 steps: {path[:10]}")
+                    if visualizer:
+                        print(f"📊 Recorded {len(visualizer.exploration_history)} visualization steps")
                     print("="*60)
                 
                 return path
@@ -233,15 +409,15 @@ class PathfindingAlgorithms:
     
     @staticmethod
     def greedy_best_first(start: Tuple[int, int], goal: Tuple[int, int], 
-                          obstacles: set, grid_width: int, grid_height: int, debug: bool = True) -> Optional[List[Tuple[int, int]]]:
-        """Greedy Best-First Search: Uses only h(n) heuristic"""
+                          obstacles: set, grid_width: int, grid_height: int, 
+                          debug: bool = True, visualizer=None) -> Optional[List[Tuple[int, int]]]:
+        """Greedy Best-First Search with visualization support"""
         if debug:
             print("\n" + "="*60)
             print("🎯 GREEDY BEST-FIRST SEARCH DEBUG")
             print("="*60)
             print(f"Start: {start} → Goal: {goal}")
             print(f"Obstacles: {len(obstacles)} towers placed")
-            print("Strategy: Only using heuristic h(n) - greedy approach")
         
         start_node = Node(start[0], start[1], g=0)
         start_node.h = PathfindingAlgorithms.heuristic(start, goal)
@@ -258,6 +434,16 @@ class PathfindingAlgorithms:
             current = heapq.heappop(open_set)
             nodes_explored += 1
             
+            # Record visualization step
+            if visualizer:
+                open_positions = [(n.x, n.y) for n in open_set]
+                visualizer.record_exploration_step(
+                    (current.x, current.y), 
+                    open_positions, 
+                    closed_set,
+                    "GBFS"
+                )
+            
             if debug and nodes_explored % 50 == 0:
                 print(f"Nodes explored: {nodes_explored} | Open set: {len(open_set)} | Current h: {current.h:.1f}")
             
@@ -273,7 +459,8 @@ class PathfindingAlgorithms:
                     print(f"Total nodes explored: {nodes_explored}")
                     print(f"Path length: {len(path)} steps")
                     print(f"⚠️  Note: GBFS may not find shortest path")
-                    print(f"First 10 steps: {path[:10]}")
+                    if visualizer:
+                        print(f"📊 Recorded {len(visualizer.exploration_history)} visualization steps")
                     print("="*60)
                 
                 return path
@@ -302,15 +489,15 @@ class PathfindingAlgorithms:
     
     @staticmethod
     def dijkstra(start: Tuple[int, int], goal: Tuple[int, int], 
-                 obstacles: set, grid_width: int, grid_height: int, debug: bool = True) -> Optional[List[Tuple[int, int]]]:
-        """Dijkstra's Algorithm: Uses only g(n) cost from start"""
+                 obstacles: set, grid_width: int, grid_height: int, 
+                 debug: bool = True, visualizer=None) -> Optional[List[Tuple[int, int]]]:
+        """Dijkstra's Algorithm with visualization support"""
         if debug:
             print("\n" + "="*60)
             print("📐 DIJKSTRA'S ALGORITHM DEBUG")
             print("="*60)
             print(f"Start: {start} → Goal: {goal}")
             print(f"Obstacles: {len(obstacles)} towers placed")
-            print("Strategy: Exploring uniformly from start - guaranteed shortest path")
         
         start_node = Node(start[0], start[1], g=0)
         start_node.f = 0
@@ -325,6 +512,16 @@ class PathfindingAlgorithms:
         while open_set:
             current = heapq.heappop(open_set)
             nodes_explored += 1
+            
+            # Record visualization step
+            if visualizer:
+                open_positions = [(n.x, n.y) for n in open_set]
+                visualizer.record_exploration_step(
+                    (current.x, current.y), 
+                    open_positions, 
+                    closed_set,
+                    "Dijkstra"
+                )
             
             if debug and nodes_explored % 50 == 0:
                 print(f"Nodes explored: {nodes_explored} | Open set: {len(open_set)} | Current cost: {current.g}")
@@ -341,7 +538,8 @@ class PathfindingAlgorithms:
                     print(f"Total nodes explored: {nodes_explored}")
                     print(f"Path length: {len(path)} steps")
                     print(f"Path cost (guaranteed shortest): {len(path) - 1}")
-                    print(f"First 10 steps: {path[:10]}")
+                    if visualizer:
+                        print(f"📊 Recorded {len(visualizer.exploration_history)} visualization steps")
                     print("="*60)
                 
                 return path
@@ -378,16 +576,17 @@ class PathfindingAlgorithms:
     @staticmethod
     def find_path(start: Tuple[int, int], goal: Tuple[int, int], 
                   obstacles: set, grid_width: int, grid_height: int, 
-                  algorithm: str = ALGORITHM_ASTAR, debug: bool = True) -> Optional[List[Tuple[int, int]]]:
+                  algorithm: str = ALGORITHM_ASTAR, debug: bool = True, 
+                  visualizer=None) -> Optional[List[Tuple[int, int]]]:
         """Unified pathfinding method that selects algorithm"""
         if algorithm == ALGORITHM_ASTAR:
-            return PathfindingAlgorithms.astar(start, goal, obstacles, grid_width, grid_height, debug)
+            return PathfindingAlgorithms.astar(start, goal, obstacles, grid_width, grid_height, debug, visualizer)
         elif algorithm == ALGORITHM_GBFS:
-            return PathfindingAlgorithms.greedy_best_first(start, goal, obstacles, grid_width, grid_height, debug)
+            return PathfindingAlgorithms.greedy_best_first(start, goal, obstacles, grid_width, grid_height, debug, visualizer)
         elif algorithm == ALGORITHM_DIJKSTRA:
-            return PathfindingAlgorithms.dijkstra(start, goal, obstacles, grid_width, grid_height, debug)
+            return PathfindingAlgorithms.dijkstra(start, goal, obstacles, grid_width, grid_height, debug, visualizer)
         else:
-            return PathfindingAlgorithms.astar(start, goal, obstacles, grid_width, grid_height, debug)
+            return PathfindingAlgorithms.astar(start, goal, obstacles, grid_width, grid_height, debug, visualizer)
 
 
 class Bullet:
@@ -454,8 +653,8 @@ class Enemy:
         self.x = path[0][0] * GRID_SIZE + GRID_SIZE // 2
         self.y = path[0][1] * GRID_SIZE + GRID_SIZE // 2 + GAME_AREA_Y_OFFSET
         self.speed = 1.5
-        self.health = 10000
-        self.max_health = 10000
+        self.health = 100
+        self.max_health = 100
         self.active = True
         self.reached_goal = False
         self.current_grid_pos = path[0] if path else None
@@ -465,7 +664,7 @@ class Enemy:
         self.animation_speed = 10
         self.animation_counter = 0
         self.sprite_size = (32, 32)
-        self.facing_right = True 
+        self.facing_right = True
         
         self.load_animation_frames()
     
@@ -489,7 +688,6 @@ class Enemy:
             pass
         
         if not self.animation_frames:
-            print("⚠️  Enemy sprites not found, using fallback")
             for i in range(4):
                 surface = pygame.Surface(self.sprite_size, pygame.SRCALPHA)
                 radius = 10 + (i % 2) * 2
@@ -512,7 +710,6 @@ class Enemy:
         dy = target_y - self.y
         dist = math.sqrt(dx**2 + dy**2)
         
-        # Update facing direction
         if dx > 0:
             self.facing_right = True
         elif dx < 0:
@@ -529,7 +726,6 @@ class Enemy:
             self.x += (dx / dist) * self.speed
             self.y += (dy / dist) * self.speed
         
-        # Update animation
         self.animation_counter += 1
         if self.animation_counter >= self.animation_speed:
             self.animation_counter = 0
@@ -555,7 +751,6 @@ class Enemy:
         if self.animation_frames:
             current_sprite = self.animation_frames[self.current_frame]
             
-            # Flip sprite based on direction
             if not self.facing_right:
                 current_sprite = pygame.transform.flip(current_sprite, True, False)
             
@@ -590,18 +785,22 @@ class Game:
         self.master_volume = 0.25
         pygame.mixer.music.set_volume(self.master_volume)
         
-        # load fonts from assets
+        # Load fonts
         self.font = self.load_font("assets/font.ttf", 40)
-        self.small_font = self.load_font("assets/font.ttf", 28)
+        self.small_font = self.load_font("assets/font.ttf", 24)
         self.title_font = self.load_font("assets/font.ttf", 64)
         
-        # load background images
+        # Load backgrounds
         self.menu_background = self.load_background("assets/menu-background.png")
         self.options_background = self.load_background("assets/option-background.png")
         self.game_background = self.load_background("assets/game-background.png")
-
         
-        # menu buttons
+        # Initialize visualizer
+        self.visualizer = PathfindingVisualizer(
+            GRID_WIDTH, GRID_HEIGHT, GRID_SIZE, GAME_AREA_Y_OFFSET
+        )
+        
+        # Menu buttons
         button_x = WINDOW_WIDTH // 2 - 150
         button_y_start = WINDOW_HEIGHT // 2 - 150
         button_spacing = 120
@@ -618,7 +817,7 @@ class Game:
                    self.quit_game)
         ]
         
-        # options UI
+        # Options UI
         self.volume_slider_rect = pygame.Rect(WINDOW_WIDTH // 2 - 200, WINDOW_HEIGHT // 2, 400, 20)
         self.volume_handle_rect = pygame.Rect(0, 0, 20, 40)
         self.dragging_volume = False
@@ -629,7 +828,7 @@ class Game:
                                    "assets/quit-button.png", "assets/quit-button-hover.png",
                                    self.show_menu)
         
-        # game variables
+        # Game variables
         self.start_pos = (0, GRID_HEIGHT // 2)
         self.goal_pos = (GRID_WIDTH - 1, GRID_HEIGHT // 2)
         
@@ -637,7 +836,7 @@ class Game:
         self.enemies = []
         self.bullets = []
         
-        self.money = 10000
+        self.money = 500
         self.tower_cost = 50
         self.lives = 20
         self.score = 0
@@ -651,13 +850,13 @@ class Game:
         
         self.selected_algorithm = ALGORITHM_ASTAR
         
-        # UI buttons - Bottom bar
+        # UI buttons
         button_width = 150
         button_height = 60
         button_spacing = 20
         right_offset = 50
         
-        # algorithm selection buttons (bottom right)
+        # Algorithm selection buttons
         self.astar_button = UIButton(
             WINDOW_WIDTH - right_offset - (button_width * 4 + button_spacing * 21),
             WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT + 20,
@@ -677,34 +876,54 @@ class Game:
             lambda: self.select_algorithm(ALGORITHM_DIJKSTRA), self.small_font
         )
         
-        # start wave button (bottom right)
+        # Visualization toggle button
+        self.viz_toggle_button = UIButton(
+            50, WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT + 20,
+            180, 40, "Viz: OFF",
+            self.toggle_visualization, self.small_font
+        )
+        
+        # Start wave button
         self.start_wave_button = UIButton(
             WINDOW_WIDTH - right_offset - button_width,
             WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT + 20,
             button_width + 25, button_height, "Start", self.start_wave, self.small_font
         )
         
-        # menu button (top right)
+        # Menu button
         self.menu_button = UIButton(
             WINDOW_WIDTH - 150,
             20,
-            140 , 60, "Menu", self.show_menu, self.small_font
+            140, 60, "Menu", self.show_menu, self.small_font
         )
         
         self.algorithm_buttons = [self.astar_button, self.gbfs_button, self.dijkstra_button]
         self.astar_button.selected = True
+    
+    def toggle_visualization(self):
+        """Toggle pathfinding visualization"""
+        self.visualizer.show_visualization = not self.visualizer.show_visualization
+        
+        # Update button text
+        if self.visualizer.show_visualization:
+            self.viz_toggle_button.text = "Viz:ON"
+            print("👁️  Visualization: ON")
+        else:
+            self.viz_toggle_button.text = "Viz:OFF"
+            print("👁️  Visualization: OFF")
     
     def select_algorithm(self, algorithm: str):
         """Select which pathfinding algorithm to use"""
         print(f"\n🔧 Switching algorithm to: {algorithm}")
         self.selected_algorithm = algorithm
         
-        # update button selection states
         self.astar_button.selected = (algorithm == ALGORITHM_ASTAR)
         self.gbfs_button.selected = (algorithm == ALGORITHM_GBFS)
         self.dijkstra_button.selected = (algorithm == ALGORITHM_DIJKSTRA)
         
-        # recalculate all enemy paths with new algorithm
+        # Clear visualization when changing algorithms
+        self.visualizer.clear()
+        
         obstacles = self.get_obstacles()
         active_enemies = [e for e in self.enemies if e.active and e.current_grid_pos]
         
@@ -713,9 +932,9 @@ class Game:
             
         for enemy in active_enemies:
             new_path = PathfindingAlgorithms.find_path(
-                enemy.current_grid_pos, self.goal_pos, 
+                enemy.current_grid_pos, self.goal_pos,
                 obstacles, GRID_WIDTH, GRID_HEIGHT, 
-                self.selected_algorithm, debug=False
+                self.selected_algorithm, debug=False, visualizer=None
             )
             if new_path:
                 enemy.update_path(new_path)
@@ -724,28 +943,23 @@ class Game:
             print(f"✅ All enemy paths updated with {algorithm}")
     
     def load_font(self, path: str, size: int):
-        """Load custom font from assets, fallback to default if not found"""
         try:
             return pygame.font.Font(path, size)
         except:
-            print(f"Font not found at {path}, using default font")
             return pygame.font.Font(None, size)
     
     def load_background(self, path: str):
-        """Load and scale background image to fit window"""
         try:
             bg = pygame.image.load(path)
             bg = pygame.transform.scale(bg, (WINDOW_WIDTH, WINDOW_HEIGHT))
             return bg
         except:
-            # Fallback: create gradient background
             bg = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
             for y in range(WINDOW_HEIGHT):
                 color_value = int(20 + (y / WINDOW_HEIGHT) * 40)
                 pygame.draw.line(bg, (color_value, color_value, color_value), (0, y), (WINDOW_WIDTH, y))
             return bg
     
-    # menu actions
     def start_game(self):
         self.state = STATE_GAME
         self.reset_game()
@@ -763,7 +977,7 @@ class Game:
         self.towers = []
         self.enemies = []
         self.bullets = []
-        self.money = 10000
+        self.money = 500
         self.lives = 20
         self.score = 0
         self.wave = 0
@@ -774,8 +988,10 @@ class Game:
         self.astar_button.selected = True
         self.gbfs_button.selected = False
         self.dijkstra_button.selected = False
+        self.visualizer.clear()
+        self.visualizer.show_visualization = False
+        self.viz_toggle_button.text = "Viz:OFF"
     
-    # Game actions
     def start_wave(self):
         if not self.wave_active:
             self.wave_active = True
@@ -783,6 +999,7 @@ class Game:
             self.enemies_per_wave = 5 + self.wave * 2
             self.enemies_spawned = 0
             self.spawn_timer = 0
+            print(f"\n🌊 Starting Wave {self.wave} with {self.enemies_per_wave} enemies")
     
     def toggle_pause(self):
         self.paused = not self.paused
@@ -796,21 +1013,27 @@ class Game:
     def spawn_enemy(self):
         obstacles = self.get_obstacles()
         print(f"\n🎮 Spawning enemy #{self.enemies_spawned + 1} for Wave {self.wave}")
+        
+        # DON'T clear visualization - keep it persistent
+        # Only clear when changing algorithms or placing towers
+        
         path = PathfindingAlgorithms.find_path(
             self.start_pos, self.goal_pos, obstacles, 
-            GRID_WIDTH, GRID_HEIGHT, self.selected_algorithm, debug=True
+            GRID_WIDTH, GRID_HEIGHT, self.selected_algorithm, 
+            debug=True, visualizer=self.visualizer
         )
         
         if path:
             self.enemies.append(Enemy(path))
             self.enemies_spawned += 1
             print(f"✅ Enemy spawned successfully!")
+            print(f"📊 Total visualization steps: {len(self.visualizer.exploration_history)}")
         else:
             print(f"❌ Failed to spawn enemy - no path available!")
     
     def place_tower(self, grid_x: int, grid_y: int):
         if self.money < self.tower_cost:
-            print(f"❌ Cannot place tower: Insufficient funds (${self.money} < ${self.tower_cost})")
+            print(f"❌ Cannot place tower: Insufficient funds")
             return False
         
         if (grid_x, grid_y) == self.start_pos or (grid_x, grid_y) == self.goal_pos:
@@ -826,29 +1049,31 @@ class Game:
         test_obstacles.add((grid_x, grid_y))
         
         print(f"\n🏗️  Testing tower placement at ({grid_x}, {grid_y})")
+        
+        # Test if path exists with new tower
         path = PathfindingAlgorithms.find_path(
             self.start_pos, self.goal_pos, test_obstacles, 
-            GRID_WIDTH, GRID_HEIGHT, self.selected_algorithm, debug=True
+            GRID_WIDTH, GRID_HEIGHT, self.selected_algorithm, 
+            debug=True, visualizer=None  # Don't record for test
         )
         
         if not path:
-            print(f"❌ Tower placement blocked - would block all paths!")
+            print(f"❌ Tower placement blocked!")
             return False
         
         self.towers.append(Tower(grid_x, grid_y))
         self.money -= self.tower_cost
         print(f"✅ Tower placed! Remaining money: ${self.money}")
         
-        # Recalculate paths for active enemies
+        # Recalculate enemy paths
         obstacles = self.get_obstacles()
         enemies_updated = 0
         for enemy in self.enemies:
             if enemy.active and enemy.current_grid_pos:
-                print(f"\n🔄 Recalculating path for enemy at {enemy.current_grid_pos}")
                 new_path = PathfindingAlgorithms.find_path(
                     enemy.current_grid_pos, self.goal_pos, 
                     obstacles, GRID_WIDTH, GRID_HEIGHT, 
-                    self.selected_algorithm, debug=False
+                    self.selected_algorithm, debug=False, visualizer=None
                 )
                 if new_path:
                     enemy.update_path(new_path)
@@ -863,14 +1088,17 @@ class Game:
         if self.paused:
             return
         
-        # spawn enemies during active wave
+        # Update visualizer
+        self.visualizer.update()
+        
+        # Spawn enemies
         if self.wave_active and self.enemies_spawned < self.enemies_per_wave:
             self.spawn_timer += 1
             if self.spawn_timer >= self.spawn_delay:
                 self.spawn_enemy()
                 self.spawn_timer = 0
         
-        # check if wave is complete
+        # Check wave completion
         if self.wave_active and self.enemies_spawned >= self.enemies_per_wave:
             if all(not e.active for e in self.enemies):
                 self.wave_active = False
@@ -899,40 +1127,22 @@ class Game:
         self.enemies = [e for e in self.enemies if e.active]
     
     def draw_top_bar(self):
-        """Draw the top UI bar with Score, Health, Coin"""
-        # Background
-        # pygame.draw.rect(self.screen, UI_BACKGROUND, (0, 0, WINDOW_WIDTH, TOP_BAR_HEIGHT))
-        # pygame.draw.line(self.screen, BLACK, (0, TOP_BAR_HEIGHT), (WINDOW_WIDTH, TOP_BAR_HEIGHT), 3)
-        
-        # Left side stats
         score_text = self.font.render(f"Score: {self.score}", True, WHITE)
         health_text = self.font.render(f"Health: {self.lives}", True, WHITE)
         coin_text = self.font.render(f"Coin: ${self.money}", True, WHITE)
         
         self.screen.blit(score_text, (50, 30))
-        self.screen.blit(health_text, (50 + 400, 30))
-        self.screen.blit(coin_text, (50 + 950, 30))
-
-        # Algorithm indicator
-        # algo_text = self.small_font.render(f"Algorithm: {self.selected_algorithm}", True, PURPLE)
-        # self.screen.blit(algo_text, (50 + 1300, 30))
+        self.screen.blit(health_text, (450, 30))
+        self.screen.blit(coin_text, (1000, 30))
         
-        # Menu button (top right)
         mouse_pos = pygame.mouse.get_pos()
         self.menu_button.update(mouse_pos)
         self.menu_button.draw(self.screen)
     
     def draw_bottom_bar(self):
-        """Draw the bottom UI bar with Wave and algorithm buttons"""
-        # Background
-        # pygame.draw.rect(self.screen, UI_BACKGROUND, (0, WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT, WINDOW_WIDTH, BOTTOM_BAR_HEIGHT))
-        # pygame.draw.line(self.screen, BLACK, (0, WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT), (WINDOW_WIDTH, WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT), 3)
-        
-        # Wave counter (left side)
         wave_text = self.font.render(f"Wave: {self.wave}", True, BLACK)
         self.screen.blit(wave_text, (50, WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT + 30))
         
-        # Algorithm selection buttons and start button (right side)
         mouse_pos = pygame.mouse.get_pos()
         
         for button in self.algorithm_buttons:
@@ -942,9 +1152,15 @@ class Game:
         if not self.wave_active and all(not e.active for e in self.enemies):
             self.start_wave_button.update(mouse_pos)
             self.start_wave_button.draw(self.screen)
+        
+        # Draw visualization toggle
+        self.viz_toggle_button.update(mouse_pos)
+        self.viz_toggle_button.draw(self.screen)
+        
+        # Draw visualization controls
+        self.visualizer.draw_controls(self.screen, self.small_font)
     
     def draw_menu(self):
-        # Draw background
         self.screen.blit(self.menu_background, (0, 0))
         
         mouse_pos = pygame.mouse.get_pos()
@@ -953,28 +1169,22 @@ class Game:
             button.draw(self.screen)
     
     def draw_options(self):
-        # Draw background
         self.screen.blit(self.options_background, (0, 0))
         
-        # Volume label
         volume_label = self.small_font.render("Master Volume", True, WHITE)
         label_rect = volume_label.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 50))
         self.screen.blit(volume_label, label_rect)
         
-        # Volume slider
         pygame.draw.rect(self.screen, GRAY, self.volume_slider_rect)
         
-        # Volume handle
         handle_x = self.volume_slider_rect.x + int(self.master_volume * self.volume_slider_rect.width) - 10
         self.volume_handle_rect.center = (handle_x, self.volume_slider_rect.centery)
         pygame.draw.rect(self.screen, BLUE, self.volume_handle_rect, border_radius=5)
         
-        # Volume percentage
         volume_text = self.small_font.render(f"{int(self.master_volume * 100)}%", True, WHITE)
         volume_rect = volume_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 50))
         self.screen.blit(volume_text, volume_rect)
         
-        # Back button
         mouse_pos = pygame.mouse.get_pos()
         self.back_button.update(mouse_pos)
         self.back_button.draw(self.screen)
@@ -982,20 +1192,25 @@ class Game:
     def draw_game(self):
         self.screen.blit(self.game_background, (0, 0))
         
-        # Draw top bar
         self.draw_top_bar()
         
-        # Draw bottom bar
-        self.draw_bottom_bar()
+        # Draw start and goal
+        start_rect = pygame.Rect(self.start_pos[0] * GRID_SIZE, 
+                                 self.start_pos[1] * GRID_SIZE + GAME_AREA_Y_OFFSET, 
+                                 GRID_SIZE, GRID_SIZE)
+        pygame.draw.rect(self.screen, GREEN, start_rect)
         
-        # Draw game area
-        # game_area_rect = pygame.Rect(0, TOP_BAR_HEIGHT, WINDOW_WIDTH, GAME_AREA_HEIGHT)
-        # pygame.draw.rect(self.screen, WHITE, game_area_rect)
+        goal_rect = pygame.Rect(self.goal_pos[0] * GRID_SIZE, 
+                               self.goal_pos[1] * GRID_SIZE + GAME_AREA_Y_OFFSET, 
+                               GRID_SIZE, GRID_SIZE)
+        pygame.draw.rect(self.screen, PURPLE, goal_rect)
         
-        # Draw hover preview in game area
+        # Draw visualization AFTER start/goal but BEFORE other elements
+        self.visualizer.draw_exploration(self.screen)
+        
+        # Draw hover preview
         mouse_x, mouse_y = pygame.mouse.get_pos()
         
-        # Check if mouse is in game area
         if TOP_BAR_HEIGHT <= mouse_y < WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT:
             grid_x = mouse_x // GRID_SIZE
             grid_y = (mouse_y - GAME_AREA_Y_OFFSET) // GRID_SIZE
@@ -1029,32 +1244,6 @@ class Game:
                 border_color = BLUE if can_place else RED
                 pygame.draw.rect(self.screen, border_color, hover_rect, 2)
         
-        # Draw start and goal
-        start_rect = pygame.Rect(self.start_pos[0] * GRID_SIZE, 
-                                 self.start_pos[1] * GRID_SIZE + GAME_AREA_Y_OFFSET, 
-                                 GRID_SIZE, GRID_SIZE)
-        pygame.draw.rect(self.screen, GREEN, start_rect)
-        
-        # Draw "enemy start" label
-        # start_label = self.small_font.render("enemy start", True, BLACK)
-        # self.screen.blit(start_label, (self.start_pos[0] * GRID_SIZE + 5, 
-        #                                self.start_pos[1] * GRID_SIZE + GAME_AREA_Y_OFFSET - 30))
-        
-        goal_rect = pygame.Rect(self.goal_pos[0] * GRID_SIZE, 
-                               self.goal_pos[1] * GRID_SIZE + GAME_AREA_Y_OFFSET, 
-                               GRID_SIZE, GRID_SIZE)
-        pygame.draw.rect(self.screen, PURPLE, goal_rect)
-        
-        # Draw "enemy finish" label
-        # finish_label = self.small_font.render("enemy finish", True, BLACK)
-        # self.screen.blit(finish_label, (self.goal_pos[0] * GRID_SIZE - 100, 
-        #                                 self.goal_pos[1] * GRID_SIZE + GAME_AREA_Y_OFFSET - 30))
-        
-        # Draw "tower placement grid" label at center
-        # grid_label = self.small_font.render("tower placement grid", True, GRAY)
-        # label_rect = grid_label.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
-        # self.screen.blit(grid_label, label_rect)
-        
         # Draw game entities
         for tower in self.towers:
             tower.draw(self.screen)
@@ -1065,6 +1254,8 @@ class Game:
         for enemy in self.enemies:
             if enemy.active:
                 enemy.draw(self.screen)
+        
+        self.draw_bottom_bar()
         
         # Game over
         if self.lives <= 0:
@@ -1120,29 +1311,43 @@ class Game:
                 mouse_pos = pygame.mouse.get_pos()
                 mouse_x, mouse_y = mouse_pos
                 
-                # Check menu button
                 if self.menu_button.is_clicked(mouse_pos):
                     self.menu_button.action()
                     return
                 
-                # Check algorithm selection buttons
+                # Check viz toggle
+                if self.viz_toggle_button.is_clicked(mouse_pos):
+                    self.viz_toggle_button.action()
+                    return
+                
                 for button in self.algorithm_buttons:
                     if button.is_clicked(mouse_pos):
                         button.action()
                         return
                 
-                # Check start wave button
                 if not self.wave_active and all(not e.active for e in self.enemies):
                     if self.start_wave_button.is_clicked(mouse_pos):
                         self.start_wave_button.action()
                         return
                 
-                # Place tower in game area
                 if TOP_BAR_HEIGHT <= mouse_y < WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT:
                     if not self.paused:
                         grid_x = mouse_x // GRID_SIZE
                         grid_y = (mouse_y - GAME_AREA_Y_OFFSET) // GRID_SIZE
                         self.place_tower(grid_x, grid_y)
+        
+        # Keyboard controls for visualization
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_v:
+                self.toggle_visualization()
+            elif event.key == pygame.K_RIGHT:
+                self.visualizer.next_step()
+            elif event.key == pygame.K_LEFT:
+                self.visualizer.prev_step()
+            elif event.key == pygame.K_r:
+                self.visualizer.reset_step()
+            elif event.key == pygame.K_SPACE:
+                self.visualizer.toggle_auto_play()
     
     def run(self):
         while self.running:
@@ -1165,7 +1370,6 @@ class Game:
                 elif self.state == STATE_GAME:
                     self.handle_game_input(event)
             
-            # Update and draw based on state
             if self.state == STATE_MENU:
                 self.draw_menu()
             elif self.state == STATE_OPTIONS:
