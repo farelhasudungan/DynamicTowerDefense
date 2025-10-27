@@ -161,45 +161,35 @@ class PathfindingVisualizer:
         if not self.exploration_history:
             return
             
-        control_y = WINDOW_HEIGHT - BOTTOM_BAR_HEIGHT + 50
-        
-        # Draw visualization status indicator
-        if self.show_visualization:
-            status_text = font.render("VIZ: ON", True, GREEN)
-        else:
-            status_text = font.render("VIZ: OFF", True, RED)
-        screen.blit(status_text, (50, control_y))
-        
-        if not self.show_visualization:
-            return
+        control_y =TOP_BAR_HEIGHT - 50
         
         # Draw step counter
-        step_text = font.render(f"Step: {self.current_step + 1}/{self.max_step + 1}", True, WHITE)
-        screen.blit(step_text, (250, control_y))
+        step_text = font.render(f"Step:{self.current_step + 1}/{self.max_step + 1}", True, WHITE)
+        screen.blit(step_text, (50, control_y))
         
         # Draw legend
-        legend_x = 450
-        legend_y = control_y + 3
+        legend_x = 300
+        legend_y = control_y
         
         # Closed (explored)
         pygame.draw.rect(screen, LIGHT_BLUE, (legend_x, legend_y, 15, 15))
         legend_text = font.render("Explored", True, WHITE)
-        screen.blit(legend_text, (legend_x + 20, legend_y - 5))
+        screen.blit(legend_text, (legend_x + 15, legend_y - 5))
         
         # Open (frontier)
-        legend_x += 115
+        legend_x += 250
         pygame.draw.rect(screen, LIGHT_GREEN, (legend_x, legend_y, 15, 15))
         legend_text = font.render("Frontier", True, WHITE)
-        screen.blit(legend_text, (legend_x + 20, legend_y - 5))
+        screen.blit(legend_text, (legend_x + 15, legend_y - 5))
         
         # Current
-        legend_x += 110
+        legend_x += 250
         pygame.draw.rect(screen, ORANGE, (legend_x, legend_y, 15, 15))
         legend_text = font.render("Current", True, WHITE)
-        screen.blit(legend_text, (legend_x + 20, legend_y - 5))
+        screen.blit(legend_text, (legend_x + 15, legend_y - 5))
         
         # Controls hint
-        legend_x += 110
+        legend_x += 200
         controls_text = font.render("[←/→: Step] [Space: Auto] [R: Reset]", True, YELLOW)
         screen.blit(controls_text, (legend_x + 20, legend_y - 5))
     
@@ -323,7 +313,6 @@ class PathfindingAlgorithms:
     def astar(start: Tuple[int, int], goal: Tuple[int, int], 
               obstacles: set, grid_width: int, grid_height: int, 
               debug: bool = True, visualizer=None) -> Optional[List[Tuple[int, int]]]:
-        """A* Algorithm with visualization support"""
         if debug:
             print("\n" + "="*60)
             print("🔍 A* PATHFINDING DEBUG")
@@ -341,10 +330,11 @@ class PathfindingAlgorithms:
         node_dict = {(start[0], start[1]): start_node}
         
         nodes_explored = 0
-        
+
         while open_set:
             current = heapq.heappop(open_set)
             nodes_explored += 1
+            # print(f"Exploring Node: ({current.x}, {current.y}) | f: {current.f:.1f} | g: {current.g} | h: {current.h:.1f}")
             
             # Record visualization step
             if visualizer:
@@ -653,8 +643,8 @@ class Enemy:
         self.x = path[0][0] * GRID_SIZE + GRID_SIZE // 2
         self.y = path[0][1] * GRID_SIZE + GRID_SIZE // 2 + GAME_AREA_Y_OFFSET
         self.speed = 1.5
-        self.health = 100
-        self.max_health = 100
+        self.health = 10000
+        self.max_health = 10000
         self.active = True
         self.reached_goal = False
         self.current_grid_pos = path[0] if path else None
@@ -836,9 +826,9 @@ class Game:
         self.enemies = []
         self.bullets = []
         
-        self.money = 500
+        self.money = 5000000
         self.tower_cost = 50
-        self.lives = 20
+        self.lives = 20000
         self.score = 0
         
         self.wave = 0
@@ -977,8 +967,8 @@ class Game:
         self.towers = []
         self.enemies = []
         self.bullets = []
-        self.money = 500
-        self.lives = 20
+        self.money = 500000
+        self.lives = 20000
         self.score = 0
         self.wave = 0
         self.enemies_spawned = 0
@@ -1126,18 +1116,18 @@ class Game:
         
         self.enemies = [e for e in self.enemies if e.active]
     
-    def draw_top_bar(self):
-        score_text = self.font.render(f"Score: {self.score}", True, WHITE)
-        health_text = self.font.render(f"Health: {self.lives}", True, WHITE)
-        coin_text = self.font.render(f"Coin: ${self.money}", True, WHITE)
+    # def draw_top_bar(self):
+    #     score_text = self.font.render(f"Score: {self.score}", True, WHITE)
+    #     health_text = self.font.render(f"Health: {self.lives}", True, WHITE)
+    #     coin_text = self.font.render(f"Coin: ${self.money}", True, WHITE)
         
-        self.screen.blit(score_text, (50, 30))
-        self.screen.blit(health_text, (450, 30))
-        self.screen.blit(coin_text, (1000, 30))
+    #     self.screen.blit(score_text, (50, 30))
+    #     self.screen.blit(health_text, (450, 30))
+    #     self.screen.blit(coin_text, (1000, 30))
         
-        mouse_pos = pygame.mouse.get_pos()
-        self.menu_button.update(mouse_pos)
-        self.menu_button.draw(self.screen)
+    #     mouse_pos = pygame.mouse.get_pos()
+    #     self.menu_button.update(mouse_pos)
+    #     self.menu_button.draw(self.screen)
     
     def draw_bottom_bar(self):
         wave_text = self.font.render(f"Wave: {self.wave}", True, BLACK)
@@ -1192,7 +1182,7 @@ class Game:
     def draw_game(self):
         self.screen.blit(self.game_background, (0, 0))
         
-        self.draw_top_bar()
+        # self.draw_top_bar()
         
         # Draw start and goal
         start_rect = pygame.Rect(self.start_pos[0] * GRID_SIZE, 
